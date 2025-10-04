@@ -142,11 +142,17 @@ class ApprovalService {
     if (status === 'Rejected') {
       expense.status = 'Rejected';
     } else if (status === 'Approved') {
-      // Move to next step in sequential workflow
-      expense.currentApproverIndex += 1;
-      
-      // Check if all steps are completed
-      if (expense.currentApproverIndex >= expense.workflow.steps.length) {
+      // Check if workflow exists and has steps
+      if (expense.workflow && expense.workflow.steps && expense.workflow.steps.length > 0) {
+        // Move to next step in sequential workflow
+        expense.currentApproverIndex += 1;
+        
+        // Check if all steps are completed
+        if (expense.currentApproverIndex >= expense.workflow.steps.length) {
+          expense.status = 'Approved';
+        }
+      } else {
+        // No workflow, approve directly
         expense.status = 'Approved';
       }
     }

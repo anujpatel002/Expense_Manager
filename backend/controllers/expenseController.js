@@ -125,27 +125,31 @@ const createExpense = async (req, res, next) => {
       // Employee with manager: Manager -> Admin
       const admin = await User.findOne({ company: req.user.company._id, role: 'Admin' });
       
-      workflow = await Workflow.create({
-        name: 'Hierarchical Approval',
-        company: req.user.company._id,
-        steps: [
-          { stepNumber: 1, approver: req.user.manager },
-          { stepNumber: 2, approver: admin._id }
-        ],
-        rules: { type: 'sequential' }
-      });
+      if (admin) {
+        workflow = await Workflow.create({
+          name: 'Hierarchical Approval',
+          company: req.user.company._id,
+          steps: [
+            { stepNumber: 1, approver: req.user.manager },
+            { stepNumber: 2, approver: admin._id }
+          ],
+          rules: { type: 'sequential' }
+        });
+      }
     } else if (req.user.role === 'Manager') {
       // Manager: Direct to Admin
       const admin = await User.findOne({ company: req.user.company._id, role: 'Admin' });
       
-      workflow = await Workflow.create({
-        name: 'Manager to Admin',
-        company: req.user.company._id,
-        steps: [
-          { stepNumber: 1, approver: admin._id }
-        ],
-        rules: { type: 'sequential' }
-      });
+      if (admin) {
+        workflow = await Workflow.create({
+          name: 'Manager to Admin',
+          company: req.user.company._id,
+          steps: [
+            { stepNumber: 1, approver: admin._id }
+          ],
+          rules: { type: 'sequential' }
+        });
+      }
     }
 
     const expenseData = {
