@@ -1,4 +1,4 @@
-# ExpenseFlow - AI-Powered Expense Management System
+# ExpenseFlow - Expense Management System
 
 ## Project Overview
 
