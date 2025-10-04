@@ -265,19 +265,36 @@ const getPendingApprovals = async (req, res, next) => {
     let pendingExpenses = [];
 
     if (req.user.role === 'Admin') {
-      // Admin sees expenses that need admin approval (step 2 or manager expenses)
-      pendingExpenses = await Expense.find({
+      // Admin sees expenses where they are the current approver
+      const expenses = await Expense.find({
         company: req.user.company._id,
-        status: 'Pending',
-        $or: [
-          { currentApproverIndex: 1 }, // Second step (admin approval)
-          { 'submittedBy': { $in: await User.find({ role: 'Manager', company: req.user.company._id }).distinct('_id') } }
-        ]
+        status: 'Pending'
       })
       .populate('submittedBy', 'name email role')
       .populate('workflow')
       .populate('approvalHistory.approver', 'name email')
       .sort({ createdAt: -1 });
+      
+      // Filter expenses where admin is the current approver
+      pendingExpenses = expenses.filter(expense => {
+        if (!expense.workflow || !expense.workflow.steps) return false;
+        const currentStep = expense.workflow.steps[expense.currentApproverIndex];
+        return currentStep && currentStep.approver.toString() === req.user._id.toString();
+      });
+      
+      // Add approval context for admin
+      pendingExpenses = pendingExpenses.map(expense => {
+        const approvalContext = {
+          ...expense.toObject(),
+          approvalContext: {
+            previousApprovals: expense.approvalHistory.filter(h => h.status === 'Approved'),
+            currentStep: expense.currentApproverIndex + 1,
+            totalSteps: expense.workflow.steps.length,
+            approvedByManager: expense.approvalHistory.some(h => h.status === 'Approved')
+          }
+        };
+        return approvalContext;
+      });
     } else if (req.user.role === 'Manager') {
       // Manager sees expenses from their direct reports (step 1)
       const directReports = await User.find({ manager: req.user._id }).distinct('_id');
