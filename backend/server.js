@@ -12,6 +12,7 @@ const expenseRoutes = require('./routes/expenseRoutes');
 const workflowRoutes = require('./routes/workflowRoutes');
 const currencyRoutes = require('./routes/currencyRoutes');
 const analyticsRoutes = require('./routes/analyticsRoutes');
+const adminRoutes = require('./routes/adminRoutes');
 
 // Connect to database
 connectDB();
@@ -36,6 +37,7 @@ app.use('/api/expenses', expenseRoutes);
 app.use('/api/workflows', workflowRoutes);
 app.use('/api/currency', currencyRoutes);
 app.use('/api/analytics', analyticsRoutes);
+app.use('/api/admin', adminRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

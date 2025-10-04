@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 const api = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api',
+  baseURL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001/api',
   withCredentials: true,
 });
 
@@ -21,7 +21,13 @@ api.interceptors.response.use(
     return response;
   },
   (error) => {
-    // Don't redirect on 401 errors, let components handle it
+    if (error.response?.status === 401 && typeof window !== 'undefined') {
+      // Only redirect if not already on landing page
+      if (window.location.pathname !== '/') {
+        document.cookie = 'token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+        window.location.href = '/';
+      }
+    }
     return Promise.reject(error);
   }
 );

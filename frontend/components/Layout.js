@@ -2,7 +2,7 @@ import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { Button } from './ui/Button';
 import ThemeToggle from './ThemeToggle';
-import { LogOut, User, Receipt, Users, Settings, Building, BarChart3, Sparkles } from 'lucide-react';
+import { LogOut, User, Receipt, Users, Settings, Building, BarChart3, Sparkles, Database } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 
@@ -29,7 +29,8 @@ const Layout = ({ children }) => {
       ? [
           { name: 'Company Expenses', href: '/dashboard/company-expenses', icon: Building },
           { name: 'Users', href: '/dashboard/users', icon: Users },
-          { name: 'Workflows', href: '/dashboard/workflows', icon: Settings }
+          { name: 'Workflows', href: '/dashboard/workflows', icon: Settings },
+          { name: 'Seed Data', href: '/dashboard/seed-data', icon: Database }
         ] 
       : []),
   ];

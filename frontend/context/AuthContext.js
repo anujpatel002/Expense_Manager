@@ -75,7 +75,12 @@ export const AuthProvider = ({ children }) => {
   };
 
   const logout = async () => {
-    await api.post('/auth/logout');
+    try {
+      await api.post('/auth/logout');
+    } catch (error) {
+      // Ignore network errors during logout, still clear local state
+      console.warn('Logout request failed:', error.message);
+    }
     dispatch({ type: 'LOGOUT' });
   };
 

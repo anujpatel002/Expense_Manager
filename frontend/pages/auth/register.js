@@ -17,9 +17,11 @@ export default function Register() {
   const [formData, setFormData] = useState(null);
   const [otp, setOtp] = useState('');
   const [isVerifying, setIsVerifying] = useState(false);
+  const [userLocation, setUserLocation] = useState(null);
   const {
     register,
     handleSubmit,
+    setValue,
     formState: { errors, isSubmitting },
   } = useForm();
 
@@ -28,7 +30,24 @@ export default function Register() {
       router.replace('/dashboard');
     }
     fetchCountries();
+    getUserLocation();
   }, [isAuthenticated, router]);
+
+  const getUserLocation = async () => {
+    try {
+      // Get user's location using IP geolocation
+      const response = await fetch('https://ipapi.co/json/');
+      const data = await response.json();
+      if (data.country_name) {
+        setUserLocation(data.country_name);
+        setValue('country', data.country_name);
+      }
+    } catch (error) {
+      console.error('Failed to get user location:', error);
+      // Fallback to India as default
+      setValue('country', 'India');
+    }
+  };
 
   const fetchCountries = async () => {
     try {
