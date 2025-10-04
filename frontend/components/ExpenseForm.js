@@ -18,7 +18,7 @@ const ExpenseForm = ({ onSuccess }) => {
   const { createExpense, uploadReceipt } = useCreateExpense();
   const { user } = useAuth();
   
-  const defaultCurrency = user?.company?.defaultCurrency || 'USD';
+  const defaultCurrency = user?.company?.defaultCurrency || 'INR';
   
   const {
     register,
@@ -45,7 +45,7 @@ const ExpenseForm = ({ onSuccess }) => {
       
       // Auto-populate form fields with currency conversion
       if (result.data.extractedData.amount) {
-        const defaultCurrency = user?.company?.defaultCurrency || 'USD';
+        const defaultCurrency = user?.company?.defaultCurrency || 'INR';
         let convertedAmount = parseFloat(result.data.extractedData.amount);
         
         // Assume extracted amount is in USD and convert to company currency
@@ -86,7 +86,7 @@ const ExpenseForm = ({ onSuccess }) => {
       }
       
       if (file.extractedAmount) {
-        const defaultCurrency = user?.company?.defaultCurrency || 'USD';
+        const defaultCurrency = user?.company?.defaultCurrency || 'INR';
         let convertedAmount = file.extractedAmount;
         
         // Convert from USD to company currency if needed

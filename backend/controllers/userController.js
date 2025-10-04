@@ -14,7 +14,7 @@ const getMe = async (req, res) => {
   try {
     const user = await User.findById(req.user._id)
       .populate('manager', 'name email')
-      .populate('company', 'name');
+      .populate('company', 'name defaultCurrency');
     
     res.json({
       success: true,

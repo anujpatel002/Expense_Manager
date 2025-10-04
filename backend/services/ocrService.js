@@ -1,19 +1,33 @@
 const Tesseract = require('tesseract.js');
+const fs = require('fs');
+const path = require('path');
 
 const extractReceiptData = async (imagePath) => {
   try {
-    const { data: { text } } = await Tesseract.recognize(imagePath, 'eng');
+    // Check if file exists
+    if (!fs.existsSync(imagePath)) {
+      throw new Error('Receipt file not found');
+    }
+
+    // Initialize Tesseract with better configuration
+    const { data: { text } } = await Tesseract.recognize(imagePath, 'eng', {
+      logger: m => console.log(m),
+      tessedit_pageseg_mode: Tesseract.PSM.SINGLE_BLOCK,
+      tessedit_char_whitelist: '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz.,/$-: '
+    });
     
-    // Extract amount using comprehensive regex patterns
+    // Extract amount using comprehensive regex patterns (including Indian Rupee ₹)
     const amountPatterns = [
-      /total[:\s]*[\$€£¥₹]?([\d,]+\.?\d*)/i,
-      /amount[:\s]*[\$€£¥₹]?([\d,]+\.?\d*)/i,
-      /grand[\s]*total[:\s]*[\$€£¥₹]?([\d,]+\.?\d*)/i,
-      /final[\s]*total[:\s]*[\$€£¥₹]?([\d,]+\.?\d*)/i,
-      /balance[:\s]*[\$€£¥₹]?([\d,]+\.?\d*)/i,
-      /[\$€£¥₹]([\d,]+\.\d{2})/g,
-      /([\d,]+\.\d{2})[\s]*[\$€£¥₹]/g,
-      /total[\s]*due[:\s]*[\$€£¥₹]?([\d,]+\.?\d*)/i
+      /total[:\s]*[\$€£¥₹Rs\.\s]*([\d,]+\.?\d*)/gi,
+      /amount[:\s]*[\$€£¥₹Rs\.\s]*([\d,]+\.?\d*)/gi,
+      /grand[\s]*total[:\s]*[\$€£¥₹Rs\.\s]*([\d,]+\.?\d*)/gi,
+      /final[\s]*total[:\s]*[\$€£¥₹Rs\.\s]*([\d,]+\.?\d*)/gi,
+      /balance[:\s]*[\$€£¥₹Rs\.\s]*([\d,]+\.?\d*)/gi,
+      /[\$€£¥₹Rs\.\s]([\d,]+\.\d{2})/g,
+      /([\d,]+\.\d{2})[\s]*[\$€£¥₹Rs\.]/g,
+      /total[\s]*due[:\s]*[\$€£¥₹Rs\.\s]*([\d,]+\.?\d*)/gi,
+      /₹[\s]*([\d,]+\.?\d*)/gi,
+      /rs[\s]*([\d,]+\.?\d*)/gi
     ];
     
     let amount = null;
@@ -39,28 +53,28 @@ const extractReceiptData = async (imagePath) => {
 
     // Extract date using comprehensive regex patterns
     const datePatterns = [
-      /date[:\s]*(\d{1,2}\/\d{1,2}\/\d{2,4})/i,
-      /date[:\s]*(\d{1,2}-\d{1,2}-\d{2,4})/i,
-      /date[:\s]*(\d{4}-\d{1,2}-\d{1,2})/i,
-      /(\d{1,2}\/\d{1,2}\/\d{4})/,
-      /(\d{1,2}-\d{1,2}-\d{4})/,
-      /(\d{4}-\d{1,2}-\d{1,2})/,
-      /(\d{1,2}\.\d{1,2}\.\d{4})/,
-      /([A-Za-z]{3}\s+\d{1,2},?\s+\d{4})/,
-      /(\d{1,2}\s+[A-Za-z]{3}\s+\d{4})/
+      /date[:\s]*(\d{1,2}\/\d{1,2}\/\d{2,4})/gi,
+      /date[:\s]*(\d{1,2}-\d{1,2}-\d{2,4})/gi,
+      /date[:\s]*(\d{4}-\d{1,2}-\d{1,2})/gi,
+      /(\d{1,2}\/\d{1,2}\/\d{4})/g,
+      /(\d{1,2}-\d{1,2}-\d{4})/g,
+      /(\d{4}-\d{1,2}-\d{1,2})/g,
+      /(\d{1,2}\.\d{1,2}\.\d{4})/g,
+      /([A-Za-z]{3}\s+\d{1,2},?\s+\d{4})/g,
+      /(\d{1,2}\s+[A-Za-z]{3}\s+\d{4})/g
     ];
     
     let date = null;
     for (const pattern of datePatterns) {
       const match = text.match(pattern);
       if (match) {
-        const rawDate = match[1];
+        const rawDate = match[1] || match[0];
         // Convert to YYYY-MM-DD format with better parsing
         try {
           let parsedDate;
           
           // Handle different date formats
-          if (rawDate.includes('/')) {
+          if (rawDate && rawDate.includes('/')) {
             const parts = rawDate.split('/');
             if (parts.length === 3) {
               // Assume MM/DD/YYYY or DD/MM/YYYY format
@@ -73,9 +87,9 @@ const extractReceiptData = async (imagePath) => {
               
               parsedDate = new Date(fullYear, month - 1, day);
             }
-          } else if (rawDate.includes('-')) {
+          } else if (rawDate && rawDate.includes('-')) {
             parsedDate = new Date(rawDate);
-          } else if (rawDate.includes('.')) {
+          } else if (rawDate && rawDate.includes('.')) {
             const parts = rawDate.split('.');
             if (parts.length === 3) {
               parsedDate = new Date(parts[2], parts[1] - 1, parts[0]);
@@ -141,7 +155,16 @@ const extractReceiptData = async (imagePath) => {
     };
   } catch (error) {
     console.error('OCR processing error:', error);
-    throw new Error('Failed to process receipt image');
+    
+    // Return partial data even if OCR fails
+    return {
+      amount: null,
+      date: null,
+      vendor: null,
+      category: null,
+      rawText: '',
+      error: error.message
+    };
   }
 };
 

@@ -79,6 +79,9 @@ const uploadReceipt = async (req, res, next) => {
       
       const extractedData = await extractReceiptData(req.file.path);
       
+      // Log OCR results for debugging
+      console.log('OCR Results:', extractedData);
+      
       res.json({
         success: true,
         data: {

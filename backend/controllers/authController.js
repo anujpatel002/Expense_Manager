@@ -104,7 +104,7 @@ const login = async (req, res, next) => {
     const { email, password } = req.body;
     console.log('Login attempt for:', email);
 
-    const user = await User.findOne({ email }).populate('company');
+    const user = await User.findOne({ email }).populate('company', 'name defaultCurrency');
     if (!user) {
       console.log('User not found:', email);
       return next(new ApiError(401, 'Invalid credentials'));
