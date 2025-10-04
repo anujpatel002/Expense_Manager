@@ -142,15 +142,12 @@ class ApprovalService {
     if (status === 'Rejected') {
       expense.status = 'Rejected';
     } else if (status === 'Approved') {
-      // Check if expense should be fully approved
-      const approvalCheck = await this.checkApprovalStatus(expenseId);
+      // Move to next step in sequential workflow
+      expense.currentApproverIndex += 1;
       
-      if (approvalCheck.shouldApprove) {
+      // Check if all steps are completed
+      if (expense.currentApproverIndex >= expense.workflow.steps.length) {
         expense.status = 'Approved';
-      }
-      // For sequential workflow, move to next approver
-      else if (expense.workflow.rules.type === 'sequential') {
-        expense.currentApproverIndex += 1;
       }
     }
 

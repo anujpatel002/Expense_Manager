@@ -117,8 +117,36 @@ const createExpense = async (req, res, next) => {
       amountInDefaultCurrency = await convertCurrency(amount, currency, defaultCurrency);
     }
 
-    // Get default workflow
-    const workflow = await getDefaultWorkflow(req.user.company._id);
+    // Create hierarchical workflow: Employee -> Manager -> Admin
+    let workflow = null;
+    let currentApproverIndex = 0;
+    
+    if (req.user.role === 'Employee' && req.user.manager) {
+      // Employee with manager: Manager -> Admin
+      const admin = await User.findOne({ company: req.user.company._id, role: 'Admin' });
+      
+      workflow = await Workflow.create({
+        name: 'Hierarchical Approval',
+        company: req.user.company._id,
+        steps: [
+          { stepNumber: 1, approver: req.user.manager },
+          { stepNumber: 2, approver: admin._id }
+        ],
+        rules: { type: 'sequential' }
+      });
+    } else if (req.user.role === 'Manager') {
+      // Manager: Direct to Admin
+      const admin = await User.findOne({ company: req.user.company._id, role: 'Admin' });
+      
+      workflow = await Workflow.create({
+        name: 'Manager to Admin',
+        company: req.user.company._id,
+        steps: [
+          { stepNumber: 1, approver: admin._id }
+        ],
+        rules: { type: 'sequential' }
+      });
+    }
 
     const expenseData = {
       submittedBy: req.user._id,
@@ -133,7 +161,7 @@ const createExpense = async (req, res, next) => {
       receiptHash,
       location,
       workflow: workflow?._id,
-      currentApproverIndex: 0
+      currentApproverIndex
     };
 
     const expense = await Expense.create(expenseData);
@@ -230,42 +258,36 @@ const getTeamExpenses = async (req, res, next) => {
 
 const getPendingApprovals = async (req, res, next) => {
   try {
-    let pendingExpenses;
+    let pendingExpenses = [];
 
     if (req.user.role === 'Admin') {
-      // Admins can see all pending expenses in their company
+      // Admin sees expenses that need admin approval (step 2 or manager expenses)
       pendingExpenses = await Expense.find({
         company: req.user.company._id,
-        status: 'Pending'
+        status: 'Pending',
+        $or: [
+          { currentApproverIndex: 1 }, // Second step (admin approval)
+          { 'submittedBy': { $in: await User.find({ role: 'Manager', company: req.user.company._id }).distinct('_id') } }
+        ]
       })
-      .populate('submittedBy', 'name email')
+      .populate('submittedBy', 'name email role')
       .populate('workflow')
       .populate('approvalHistory.approver', 'name email')
       .sort({ createdAt: -1 });
-    } else {
-      // Find workflows where user is an approver
-      const workflows = await Workflow.find({
+    } else if (req.user.role === 'Manager') {
+      // Manager sees expenses from their direct reports (step 1)
+      const directReports = await User.find({ manager: req.user._id }).distinct('_id');
+      
+      pendingExpenses = await Expense.find({
         company: req.user.company._id,
-        'steps.approver': req.user._id
-      });
-
-      const workflowIds = workflows.map(w => w._id);
-
-      // Find expenses pending approval where current approver matches user
-      const expenses = await Expense.find({
-        workflow: { $in: workflowIds },
-        status: 'Pending'
+        status: 'Pending',
+        submittedBy: { $in: directReports },
+        currentApproverIndex: 0
       })
-      .populate('submittedBy', 'name email')
+      .populate('submittedBy', 'name email role')
       .populate('workflow')
-      .populate('approvalHistory.approver', 'name email');
-
-      // Filter expenses where user is the current approver
-      pendingExpenses = expenses.filter(expense => {
-        if (!expense.workflow || !expense.workflow.steps) return false;
-        const currentStep = expense.workflow.steps[expense.currentApproverIndex];
-        return currentStep && currentStep.approver.toString() === req.user._id.toString();
-      });
+      .populate('approvalHistory.approver', 'name email')
+      .sort({ createdAt: -1 });
     }
 
     res.json({
