@@ -376,6 +376,8 @@ frontend/
 - **Role-based access**: Managers see department expenses, Admins see all
 - **Employee summary cards** with expense statistics
 - **Advanced filtering** by department, employee, and search terms
+- **Enhanced search**: Search across descriptions, employees, categories, and amounts
+- **Smart defaults**: Manager department pre-selected and locked
 - **Real-time stats** updating based on filters
 
 ### Enhanced User Experience

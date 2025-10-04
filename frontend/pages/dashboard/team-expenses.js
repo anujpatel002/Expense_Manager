@@ -5,7 +5,7 @@ import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
 import { useAuth } from '../../context/AuthContext';
 import { useCurrency } from '../../hooks/useCurrency';
-import { Users, Search, Filter, Building2, Receipt, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Users, Search, Filter, Building2, Receipt, ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { formatDate } from '../../lib/utils';
 import useSWR from 'swr';
 import api from '../../lib/api';
@@ -16,7 +16,7 @@ export default function TeamExpenses() {
   const { user } = useAuth();
   const { formatAmount } = useCurrency();
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedDepartment, setSelectedDepartment] = useState('');
+  const [selectedDepartment, setSelectedDepartment] = useState(user?.role === 'Manager' ? user?.department : '');
   const [selectedEmployee, setSelectedEmployee] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const recordsPerPage = 10;
@@ -32,7 +32,9 @@ export default function TeamExpenses() {
       const matchesSearch = !searchTerm || 
         expense.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
         expense.submittedBy.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        expense.category.toLowerCase().includes(searchTerm.toLowerCase());
+        expense.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        expense.amount.toString().includes(searchTerm) ||
+        (expense.amountInDefaultCurrency && expense.amountInDefaultCurrency.toString().includes(searchTerm));
       const matchesDepartment = !selectedDepartment || expense.submittedBy.department === selectedDepartment;
       const matchesEmployee = !selectedEmployee || expense.submittedBy._id === selectedEmployee;
       return matchesSearch && matchesDepartment && matchesEmployee;
@@ -108,16 +110,27 @@ export default function TeamExpenses() {
           <CardContent className="p-4">
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-textSecondary" />
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-textSecondary z-10" />
                 <Input
-                  placeholder="Search by description, employee, or category..."
+                  placeholder="Search expenses, employees, categories, amounts..."
                   value={searchTerm}
                   onChange={(e) => {
                     setSearchTerm(e.target.value);
                     setCurrentPage(1);
                   }}
-                  className="pl-10"
+                  className="pl-10 pr-10 py-2.5 border border-border rounded-lg bg-surface focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all duration-200"
                 />
+                {searchTerm && (
+                  <button
+                    onClick={() => {
+                      setSearchTerm('');
+                      setCurrentPage(1);
+                    }}
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-textSecondary hover:text-text transition-colors duration-200 flex items-center justify-center"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                )}
               </div>
               
               <select
@@ -128,9 +141,10 @@ export default function TeamExpenses() {
                   setCurrentPage(1);
                 }}
                 className="ai-input"
+                disabled={user?.role === 'Manager'}
               >
-                <option value="">All Departments</option>
-                {departments.map(dept => (
+                <option value="">{user?.role === 'Manager' ? user?.department : 'All Departments'}</option>
+                {user?.role === 'Admin' && departments.map(dept => (
                   <option key={dept} value={dept}>{dept}</option>
                 ))}
               </select>
