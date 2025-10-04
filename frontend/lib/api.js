@@ -22,8 +22,9 @@ api.interceptors.response.use(
   },
   (error) => {
     if (error.response?.status === 401 && typeof window !== 'undefined') {
-      // Only redirect if not already on landing page
-      if (window.location.pathname !== '/') {
+      // Only redirect if not already on landing page or auth pages
+      const currentPath = window.location.pathname;
+      if (currentPath !== '/' && !currentPath.startsWith('/auth/')) {
         document.cookie = 'token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
         window.location.href = '/';
       }

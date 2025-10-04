@@ -4,6 +4,7 @@ const authMiddleware = require('../middleware/authMiddleware');
 const adminMiddleware = require('../middleware/adminMiddleware');
 const User = require('../models/User');
 const Expense = require('../models/Expense');
+const Workflow = require('../models/Workflow');
 
 const departments = ['Finance', 'HR', 'IT', 'Marketing', 'Sales', 'Operations', 'Legal', 'R&D'];
 
@@ -187,6 +188,82 @@ router.post('/seed-users', authMiddleware, adminMiddleware, async (req, res) => 
     res.status(200).json({
       success: true,
       message: `Successfully created ${totalCreated} users across ${departments.length} departments`
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// Seed Workflows
+router.post('/seed-workflows', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const company = req.user.company;
+    
+    const cfo = await User.findOne({ company: company._id, email: 'rajesh.kumar@company.com' });
+    const managers = await User.find({ company: company._id, role: 'Manager' });
+    
+    if (!cfo || managers.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'No managers found. Please seed users first.'
+      });
+    }
+    
+    await Workflow.deleteMany({ company: company._id });
+    
+    const workflows = [
+      {
+        name: 'Sequential Approval Workflow',
+        steps: [managers[0], managers[1], cfo].map((user, index) => ({
+          stepNumber: index + 1,
+          approver: user._id
+        })),
+        rules: { type: 'sequential' }
+      },
+      {
+        name: '60% Approval Workflow',
+        steps: managers.slice(0, 5).map((manager, index) => ({
+          stepNumber: index + 1,
+          approver: manager._id
+        })),
+        rules: { type: 'percentage', percentageApproval: 60 }
+      },
+      {
+        name: 'CFO Auto-Approval Workflow',
+        steps: managers.slice(0, 3).map((manager, index) => ({
+          stepNumber: index + 1,
+          approver: manager._id
+        })),
+        rules: { type: 'specific_approver', specificApprover: cfo._id }
+      },
+      {
+        name: 'Hybrid: 60% OR CFO Approval',
+        steps: managers.slice(0, 4).map((manager, index) => ({
+          stepNumber: index + 1,
+          approver: manager._id
+        })),
+        rules: {
+          type: 'hybrid',
+          percentageApproval: 60,
+          specificApprover: cfo._id,
+          hybridOperator: 'OR'
+        }
+      }
+    ];
+    
+    for (const workflowData of workflows) {
+      await Workflow.create({
+        ...workflowData,
+        company: company._id
+      });
+    }
+    
+    res.status(200).json({
+      success: true,
+      message: `Successfully created ${workflows.length} workflows`
     });
   } catch (error) {
     res.status(500).json({

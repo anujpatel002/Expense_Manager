@@ -1,63 +1,162 @@
 const Expense = require('../models/Expense');
 const Workflow = require('../models/Workflow');
 
-const processApproval = async (expenseId, approverId, status, comment = '') => {
-  const expense = await Expense.findById(expenseId).populate('workflow');
-  
-  if (!expense) {
-    throw new Error('Expense not found');
-  }
+class ApprovalService {
+  /**
+   * Check if expense should be approved based on workflow rules
+   */
+  static async checkApprovalStatus(expenseId) {
+    const expense = await Expense.findById(expenseId)
+      .populate('workflow')
+      .populate('approvalHistory.approver', 'name email role');
 
-  // Add to approval history
-  expense.approvalHistory.push({
-    approver: approverId,
-    status,
-    comment,
-    approvedAt: new Date()
-  });
+    if (!expense || !expense.workflow) {
+      return { shouldApprove: false, reason: 'No workflow found' };
+    }
 
-  if (status === 'Rejected') {
-    expense.status = 'Rejected';
-  } else if (status === 'Approved') {
     const workflow = expense.workflow;
-    
-    // If no workflow or no rules, approve directly
-    if (!workflow || !workflow.rules) {
-      expense.status = 'Approved';
-    } else {
-      // Check if this meets final approval conditions
-      if (workflow.rules.finalApprover && 
-          approverId.toString() === workflow.rules.finalApprover.toString()) {
-        expense.status = 'Approved';
-      } else if (workflow.rules.percentageApproval) {
-        const approvalCount = expense.approvalHistory.filter(h => h.status === 'Approved').length;
-        const totalSteps = workflow.steps ? workflow.steps.length : 1;
-        const approvalPercentage = (approvalCount / totalSteps) * 100;
-        
-        if (approvalPercentage >= workflow.rules.percentageApproval) {
-          expense.status = 'Approved';
-        }
-      } else {
-        // Move to next approver
-        expense.currentApproverIndex += 1;
-        
-        // If no more approvers, approve the expense
-        if (!workflow.steps || expense.currentApproverIndex >= workflow.steps.length) {
-          expense.status = 'Approved';
-        }
-      }
+    const approvalHistory = expense.approvalHistory.filter(h => h.status === 'Approved');
+
+    switch (workflow.rules.type) {
+      case 'percentage':
+        return this.checkPercentageRule(workflow, approvalHistory);
+      
+      case 'specific_approver':
+        return this.checkSpecificApproverRule(workflow, approvalHistory);
+      
+      case 'hybrid':
+        return this.checkHybridRule(workflow, approvalHistory);
+      
+      case 'sequential':
+      default:
+        return this.checkSequentialRule(workflow, approvalHistory, expense.currentApproverIndex);
     }
   }
 
-  await expense.save();
-  return expense;
-};
+  /**
+   * Percentage rule: If X% of approvers approve → Expense approved
+   */
+  static checkPercentageRule(workflow, approvalHistory) {
+    const totalApprovers = workflow.steps.length;
+    const approvedCount = approvalHistory.length;
+    const requiredPercentage = workflow.rules.percentageApproval;
+    
+    if (!requiredPercentage || totalApprovers === 0) {
+      return { shouldApprove: false, reason: 'Invalid percentage rule configuration' };
+    }
 
-const getDefaultWorkflow = async (companyId) => {
-  return await Workflow.findOne({ company: companyId }).populate('steps.approver');
-};
+    const currentPercentage = (approvedCount / totalApprovers) * 100;
+    const shouldApprove = currentPercentage >= requiredPercentage;
 
-module.exports = {
-  processApproval,
-  getDefaultWorkflow
-};
+    return {
+      shouldApprove,
+      reason: shouldApprove 
+        ? `${currentPercentage.toFixed(1)}% approval reached (required: ${requiredPercentage}%)`
+        : `${currentPercentage.toFixed(1)}% approval (required: ${requiredPercentage}%)`
+    };
+  }
+
+  /**
+   * Specific approver rule: If specific user approves → Expense auto-approved
+   */
+  static checkSpecificApproverRule(workflow, approvalHistory) {
+    const specificApproverId = workflow.rules.specificApprover;
+    
+    if (!specificApproverId) {
+      return { shouldApprove: false, reason: 'No specific approver configured' };
+    }
+
+    const specificApproverApproved = approvalHistory.some(
+      h => h.approver._id.toString() === specificApproverId.toString()
+    );
+
+    return {
+      shouldApprove: specificApproverApproved,
+      reason: specificApproverApproved 
+        ? 'Approved by specific approver'
+        : 'Waiting for specific approver'
+    };
+  }
+
+  /**
+   * Hybrid rule: Combine percentage AND/OR specific approver
+   */
+  static checkHybridRule(workflow, approvalHistory) {
+    const percentageResult = this.checkPercentageRule(workflow, approvalHistory);
+    const specificResult = this.checkSpecificApproverRule(workflow, approvalHistory);
+    const operator = workflow.rules.hybridOperator || 'OR';
+
+    let shouldApprove;
+    let reason;
+
+    if (operator === 'OR') {
+      shouldApprove = percentageResult.shouldApprove || specificResult.shouldApprove;
+      reason = shouldApprove 
+        ? (specificResult.shouldApprove ? specificResult.reason : percentageResult.reason)
+        : `${percentageResult.reason} OR ${specificResult.reason}`;
+    } else { // AND
+      shouldApprove = percentageResult.shouldApprove && specificResult.shouldApprove;
+      reason = shouldApprove 
+        ? 'Both percentage and specific approver conditions met'
+        : `${percentageResult.reason} AND ${specificResult.reason}`;
+    }
+
+    return { shouldApprove, reason };
+  }
+
+  /**
+   * Sequential rule: Traditional step-by-step approval
+   */
+  static checkSequentialRule(workflow, approvalHistory, currentApproverIndex) {
+    const totalSteps = workflow.steps.length;
+    const approvedSteps = approvalHistory.length;
+    
+    const shouldApprove = approvedSteps >= totalSteps;
+    
+    return {
+      shouldApprove,
+      reason: shouldApprove 
+        ? 'All sequential approvals completed'
+        : `${approvedSteps}/${totalSteps} sequential approvals completed`
+    };
+  }
+
+  /**
+   * Process approval and update expense status
+   */
+  static async processApproval(expenseId, approverId, status, comment = '') {
+    const expense = await Expense.findById(expenseId).populate('workflow');
+    
+    if (!expense) {
+      throw new Error('Expense not found');
+    }
+
+    // Add to approval history
+    expense.approvalHistory.push({
+      approver: approverId,
+      status,
+      comment,
+      approvedAt: new Date()
+    });
+
+    if (status === 'Rejected') {
+      expense.status = 'Rejected';
+    } else if (status === 'Approved') {
+      // Check if expense should be fully approved
+      const approvalCheck = await this.checkApprovalStatus(expenseId);
+      
+      if (approvalCheck.shouldApprove) {
+        expense.status = 'Approved';
+      }
+      // For sequential workflow, move to next approver
+      else if (expense.workflow.rules.type === 'sequential') {
+        expense.currentApproverIndex += 1;
+      }
+    }
+
+    await expense.save();
+    return expense;
+  }
+}
+
+module.exports = ApprovalService;

@@ -8,7 +8,8 @@ const User = require('../models/User');
 const Workflow = require('../models/Workflow');
 const { convertCurrency } = require('../services/currencyService');
 const { extractReceiptData } = require('../services/ocrService');
-const { processApproval, getDefaultWorkflow } = require('../services/approvalService');
+const ApprovalService = require('../services/approvalService');
+const { getDefaultWorkflow } = require('../services/workflowService');
 const { detectAnomalies, checkDuplicateExpenses } = require('../services/fraudDetectionService');
 const ApiError = require('../utils/apiError');
 
@@ -286,7 +287,7 @@ const updateExpenseStatus = async (req, res, next) => {
       return next(new ApiError(400, 'Comment is required for rejection'));
     }
 
-    const expense = await processApproval(id, req.user._id, status, comment);
+    const expense = await ApprovalService.processApproval(id, req.user._id, status, comment);
     
     const populatedExpense = await Expense.findById(expense._id)
       .populate('submittedBy', 'name email')

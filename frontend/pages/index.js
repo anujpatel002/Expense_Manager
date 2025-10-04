@@ -18,8 +18,10 @@ import {
 export default function LandingPage() {
   const router = useRouter();
   const [currentFeature, setCurrentFeature] = useState(0);
+  const [isClient, setIsClient] = useState(false);
 
   useEffect(() => {
+    setIsClient(true);
     const interval = setInterval(() => {
       setCurrentFeature((prev) => (prev + 1) % 4);
     }, 3000);
@@ -88,7 +90,7 @@ export default function LandingPage() {
                   <div
                     key={index}
                     className={`transition-all duration-500 ${
-                      currentFeature === index ? 'opacity-100 scale-100' : 'opacity-0 scale-95 absolute inset-0 p-8'
+                      !isClient || currentFeature === index ? 'opacity-100 scale-100' : 'opacity-0 scale-95 absolute inset-0 p-8'
                     }`}
                   >
                     <feature.icon className="h-16 w-16 text-blue-600 mx-auto mb-4" />
@@ -98,16 +100,18 @@ export default function LandingPage() {
                 ))}
               </CardContent>
             </Card>
-            <div className="flex justify-center mt-4 space-x-2">
-              {features.map((_, index) => (
-                <div
-                  key={index}
-                  className={`w-2 h-2 rounded-full transition-colors ${
-                    currentFeature === index ? 'bg-blue-600' : 'bg-gray-300'
-                  }`}
-                />
-              ))}
-            </div>
+            {isClient && (
+              <div className="flex justify-center mt-4 space-x-2">
+                {features.map((_, index) => (
+                  <div
+                    key={index}
+                    className={`w-2 h-2 rounded-full transition-colors ${
+                      currentFeature === index ? 'bg-blue-600' : 'bg-gray-300'
+                    }`}
+                  />
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </section>

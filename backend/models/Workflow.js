@@ -21,16 +21,27 @@ const workflowSchema = new mongoose.Schema({
     }
   }],
   rules: {
+    type: {
+      type: String,
+      enum: ['sequential', 'percentage', 'specific_approver', 'hybrid'],
+      default: 'sequential'
+    },
     percentageApproval: {
       type: Number,
       min: 1,
       max: 100,
       default: null
     },
-    finalApprover: {
+    specificApprover: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
       default: null
+    },
+    // For hybrid: percentage OR specific approver
+    hybridOperator: {
+      type: String,
+      enum: ['OR', 'AND'],
+      default: 'OR'
     }
   }
 }, {

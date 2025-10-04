@@ -5,7 +5,17 @@ const ApiError = require('../utils/apiError');
 
 const createWorkflowValidation = [
   body('name').notEmpty().withMessage('Workflow name is required'),
-  body('steps').isArray({ min: 1 }).withMessage('At least one approval step is required')
+  body('rules.type').isIn(['sequential', 'percentage', 'specific_approver', 'hybrid']).withMessage('Invalid rule type'),
+  body('steps').custom((steps, { req }) => {
+    const ruleType = req.body.rules?.type;
+    if (ruleType === 'sequential' && (!steps || steps.length === 0)) {
+      throw new Error('Sequential workflow requires at least one approval step');
+    }
+    if ((ruleType === 'percentage' || ruleType === 'hybrid') && (!steps || steps.length === 0)) {
+      throw new Error('Percentage and hybrid workflows require at least one approval step');
+    }
+    return true;
+  })
 ];
 
 const createWorkflow = async (req, res, next) => {
@@ -27,11 +37,25 @@ const createWorkflow = async (req, res, next) => {
       }
     }
 
-    // Validate final approver if provided
-    if (rules?.finalApprover) {
-      const finalApprover = await User.findById(rules.finalApprover);
-      if (!finalApprover || finalApprover.company.toString() !== req.user.company._id.toString()) {
-        return next(new ApiError(400, 'Invalid final approver'));
+    // Validate specific approver if provided
+    if (rules?.specificApprover) {
+      const specificApprover = await User.findById(rules.specificApprover);
+      if (!specificApprover || specificApprover.company.toString() !== req.user.company._id.toString()) {
+        return next(new ApiError(400, 'Invalid specific approver'));
+      }
+    }
+
+    // Validate percentage rule
+    if (rules?.type === 'percentage' || rules?.type === 'hybrid') {
+      if (!rules.percentageApproval || rules.percentageApproval < 1 || rules.percentageApproval > 100) {
+        return next(new ApiError(400, 'Percentage approval must be between 1 and 100'));
+      }
+    }
+
+    // Validate specific approver rule
+    if (rules?.type === 'specific_approver' || rules?.type === 'hybrid') {
+      if (!rules.specificApprover) {
+        return next(new ApiError(400, 'Specific approver is required for this rule type'));
       }
     }
 
@@ -47,7 +71,7 @@ const createWorkflow = async (req, res, next) => {
 
     const populatedWorkflow = await Workflow.findById(workflow._id)
       .populate('steps.approver', 'name email role')
-      .populate('rules.finalApprover', 'name email role');
+      .populate('rules.specificApprover', 'name email role');
 
     res.status(201).json({
       success: true,
@@ -62,7 +86,7 @@ const getWorkflows = async (req, res, next) => {
   try {
     const workflows = await Workflow.find({ company: req.user.company._id })
       .populate('steps.approver', 'name email role')
-      .populate('rules.finalApprover', 'name email role')
+      .populate('rules.specificApprover', 'name email role')
       .sort({ createdAt: -1 });
 
     res.json({
