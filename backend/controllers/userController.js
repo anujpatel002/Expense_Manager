@@ -6,23 +6,40 @@ const createUserValidation = [
   body('name').notEmpty().withMessage('Name is required'),
   body('email').isEmail().withMessage('Valid email is required'),
   body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
-  body('role').isIn(['Employee', 'Manager']).withMessage('Role must be Employee or Manager')
+  body('role').isIn(['Employee', 'Manager']).withMessage('Role must be Employee or Manager'),
+  body('department').notEmpty().withMessage('Department is required')
 ];
 
 const getMe = async (req, res) => {
-  res.json({
-    success: true,
-    data: {
-      user: {
-        id: req.user._id,
-        name: req.user.name,
-        email: req.user.email,
-        role: req.user.role,
-        company: req.user.company,
-        manager: req.user.manager
+  try {
+    const user = await User.findById(req.user._id)
+      .populate('manager', 'name email')
+      .populate('company', 'name');
+    
+    res.json({
+      success: true,
+      data: {
+        user: {
+          id: user._id,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+          department: user.department,
+          company: {
+            _id: user.company._id,
+            name: user.company.name,
+            defaultCurrency: user.company.defaultCurrency
+          },
+          manager: user.manager
+        }
       }
-    }
-  });
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching user data'
+    });
+  }
 };
 
 const createUser = async (req, res, next) => {
@@ -32,7 +49,7 @@ const createUser = async (req, res, next) => {
       return next(new ApiError(400, errors.array()[0].msg));
     }
 
-    const { name, email, password, role, manager } = req.body;
+    const { name, email, password, role, manager, department } = req.body;
 
     // Check if user already exists
     const existingUser = await User.findOne({ email });
@@ -53,8 +70,10 @@ const createUser = async (req, res, next) => {
       email,
       password,
       role,
+      department,
       company: req.user.company._id,
-      manager: manager || null
+      manager: manager || null,
+      isEmailVerified: true // Users created by admin are auto-verified
     });
 
     const populatedUser = await User.findById(user._id).populate('manager', 'name email');
@@ -67,6 +86,7 @@ const createUser = async (req, res, next) => {
           name: populatedUser.name,
           email: populatedUser.email,
           role: populatedUser.role,
+          department: populatedUser.department,
           manager: populatedUser.manager
         }
       }

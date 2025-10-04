@@ -3,7 +3,7 @@ import { cn } from '../../lib/utils';
 const Card = ({ className, ...props }) => (
   <div
     className={cn(
-      'rounded-lg border bg-card text-card-foreground shadow-sm',
+      'ai-card hover-lift animate-fade-in',
       className
     )}
     {...props}
@@ -11,13 +11,13 @@ const Card = ({ className, ...props }) => (
 );
 
 const CardHeader = ({ className, ...props }) => (
-  <div className={cn('flex flex-col space-y-1.5 p-6', className)} {...props} />
+  <div className={cn('flex flex-col space-y-2 p-6 border-b border-border/50', className)} {...props} />
 );
 
 const CardTitle = ({ className, ...props }) => (
   <h3
     className={cn(
-      'text-2xl font-semibold leading-none tracking-tight',
+      'text-xl font-bold text-text flex items-center',
       className
     )}
     {...props}
@@ -32,7 +32,7 @@ const CardDescription = ({ className, ...props }) => (
 );
 
 const CardContent = ({ className, ...props }) => (
-  <div className={cn('p-6 pt-0', className)} {...props} />
+  <div className={cn('p-6', className)} {...props} />
 );
 
 const CardFooter = ({ className, ...props }) => (

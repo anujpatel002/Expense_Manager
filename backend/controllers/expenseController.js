@@ -4,6 +4,7 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const Expense = require('../models/Expense');
+const User = require('../models/User');
 const Workflow = require('../models/Workflow');
 const { convertCurrency } = require('../services/currencyService');
 const { extractReceiptData } = require('../services/ocrService');
@@ -178,6 +179,51 @@ const getMyExpenses = async (req, res, next) => {
   }
 };
 
+const getTeamExpenses = async (req, res, next) => {
+  try {
+    let employeeQuery = { company: req.user.company._id };
+    
+    // Managers can only see their department employees
+    if (req.user.role === 'Manager') {
+      employeeQuery.department = req.user.department;
+      // Also exclude the manager themselves from the employee list
+      employeeQuery._id = { $ne: req.user._id };
+    } else if (req.user.role === 'Admin') {
+      // Admin can see all employees and managers (but not other admins)
+      employeeQuery.role = { $in: ['Employee', 'Manager'] };
+    } else {
+      // Regular employees shouldn't access this endpoint
+      return next(new ApiError(403, 'Access denied'));
+    }
+
+    // Get team members
+    const employees = await User.find(employeeQuery)
+      .select('name email role department')
+      .sort({ name: 1 });
+
+    const employeeIds = employees.map(emp => emp._id);
+
+    // Get expenses for team members
+    const expenses = await Expense.find({ 
+      submittedBy: { $in: employeeIds },
+      company: req.user.company._id 
+    })
+    .populate('submittedBy', 'name email role department')
+    .populate('workflow', 'name')
+    .sort({ createdAt: -1 });
+
+    res.json({
+      success: true,
+      data: { 
+        expenses,
+        employees 
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 const getPendingApprovals = async (req, res, next) => {
   try {
     let pendingExpenses;
@@ -280,6 +326,7 @@ module.exports = {
   uploadReceipt,
   createExpense,
   getMyExpenses,
+  getTeamExpenses,
   getPendingApprovals,
   updateExpenseStatus,
   getCompanyExpenses,

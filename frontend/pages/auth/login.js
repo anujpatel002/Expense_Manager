@@ -37,7 +37,7 @@ export default function Login() {
     <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-          <CardTitle className="text-3xl font-bold text-primary">ExpenseFlow</CardTitle>
+          <CardTitle className="text-3xl font-bold text-primary">Expense Manager</CardTitle>
           <p className="text-gray-600">Sign in to your account</p>
         </CardHeader>
         <CardContent>
@@ -83,7 +83,12 @@ export default function Login() {
             </Button>
           </form>
 
-          <div className="mt-6 text-center">
+          <div className="mt-6 text-center space-y-2">
+            <p className="text-sm text-gray-600">
+              <Link href="/auth/forgot-password" className="text-primary hover:underline">
+                Forgot your password?
+              </Link>
+            </p>
             <p className="text-sm text-gray-600">
               Don't have an account?{' '}
               <Link href="/auth/register" className="text-primary hover:underline">

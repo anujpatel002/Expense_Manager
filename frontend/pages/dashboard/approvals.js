@@ -1,19 +1,25 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import Layout from '../../components/Layout';
 import { Button } from '../../components/ui/Button';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/Card';
 import { Input } from '../../components/ui/Input';
 import { usePendingApprovals, useCreateExpense } from '../../hooks/useExpenses';
-import { formatCurrency, formatDate } from '../../lib/utils';
-import { CheckCircle, XCircle, MessageSquare, User, Shield, AlertTriangle, MapPin } from 'lucide-react';
+import { formatDate } from '../../lib/utils';
+import { useCurrency } from '../../hooks/useCurrency';
+import { useAuth } from '../../context/AuthContext';
+import { CheckCircle, XCircle, MessageSquare, User, Shield, AlertTriangle, MapPin, ChevronLeft, ChevronRight } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export default function Approvals() {
   const { expenses, isLoading, mutate } = usePendingApprovals();
   const { updateExpenseStatus } = useCreateExpense();
+  const { formatAmount } = useCurrency();
+  const { user } = useAuth();
   const [selectedExpense, setSelectedExpense] = useState(null);
   const [comment, setComment] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const recordsPerPage = 5;
 
   const handleApproval = async (expenseId, status) => {
     if (status === 'Rejected' && !comment.trim()) {
@@ -35,6 +41,28 @@ export default function Approvals() {
     }
   };
 
+  const handleBulkApproval = async () => {
+    setIsSubmitting(true);
+    try {
+      const promises = expenses.map(expense => 
+        updateExpenseStatus(expense._id, 'Approved', 'Bulk approved by admin')
+      );
+      await Promise.all(promises);
+      toast.success(`Successfully approved ${expenses.length} expenses`);
+      mutate();
+    } catch (error) {
+      toast.error('Failed to approve all expenses');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const totalPages = Math.ceil(expenses.length / recordsPerPage);
+  const paginatedExpenses = useMemo(() => {
+    const startIndex = (currentPage - 1) * recordsPerPage;
+    return expenses.slice(startIndex, startIndex + recordsPerPage);
+  }, [expenses, currentPage, recordsPerPage]);
+
   if (isLoading) {
     return (
       <Layout>
@@ -48,7 +76,30 @@ export default function Approvals() {
   return (
     <Layout>
       <div className="space-y-6">
-        <h1 className="text-3xl font-bold">Pending Approvals</h1>
+        <div className="flex items-center justify-between">
+          <h1 className="text-3xl font-bold">Pending Approvals</h1>
+          <div className="flex items-center space-x-4">
+            {expenses.length > 0 && user?.role === 'Admin' && (
+              <Button
+                onClick={() => {
+                  if (confirm(`Approve all ${expenses.length} pending expenses?`)) {
+                    handleBulkApproval();
+                  }
+                }}
+                disabled={isSubmitting}
+                className="bg-green-600 hover:bg-green-700 text-white"
+              >
+                <CheckCircle className="h-4 w-4 mr-2" />
+                Approve All ({expenses.length})
+              </Button>
+            )}
+            {expenses.length > 0 && (
+              <span className="text-sm text-gray-500">
+                Page {currentPage} of {totalPages} ({expenses.length} total)
+              </span>
+            )}
+          </div>
+        </div>
 
         {expenses.length === 0 ? (
           <Card>
@@ -58,8 +109,9 @@ export default function Approvals() {
             </CardContent>
           </Card>
         ) : (
-          <div className="grid gap-6">
-            {expenses.map((expense) => (
+          <>
+            <div className="grid gap-6">
+              {paginatedExpenses.map((expense) => (
               <Card key={expense._id}>
                 <CardHeader>
                   <div className="flex justify-between items-start">
@@ -72,7 +124,7 @@ export default function Approvals() {
                     </div>
                     <div className="text-right">
                       <p className="text-2xl font-bold">
-                        {formatCurrency(expense.amount, expense.currency)}
+                        {formatAmount(expense.amountInDefaultCurrency || expense.amount)}
                       </p>
                       <p className="text-sm text-gray-600">
                         {formatDate(expense.expenseDate)}
@@ -212,8 +264,65 @@ export default function Approvals() {
                   </div>
                 </CardContent>
               </Card>
-            ))}
-          </div>
+              ))}
+            </div>
+            
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between mt-6">
+                <div className="text-sm text-gray-600">
+                  Showing {(currentPage - 1) * recordsPerPage + 1} to {Math.min(currentPage * recordsPerPage, expenses.length)} of {expenses.length} results
+                </div>
+                <div className="flex items-center space-x-2">
+                  <button
+                    onClick={() => setCurrentPage(currentPage - 1)}
+                    disabled={currentPage === 1}
+                    className="flex items-center px-3 py-2 text-sm border rounded-md disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+                  >
+                    <ChevronLeft className="h-4 w-4 mr-1" />
+                    Previous
+                  </button>
+                  
+                  <div className="flex space-x-1">
+                    {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                      let pageNum;
+                      if (totalPages <= 5) {
+                        pageNum = i + 1;
+                      } else if (currentPage <= 3) {
+                        pageNum = i + 1;
+                      } else if (currentPage >= totalPages - 2) {
+                        pageNum = totalPages - 4 + i;
+                      } else {
+                        pageNum = currentPage - 2 + i;
+                      }
+                      
+                      return (
+                        <button
+                          key={pageNum}
+                          onClick={() => setCurrentPage(pageNum)}
+                          className={`w-10 h-10 text-sm border rounded-md ${
+                            currentPage === pageNum
+                              ? 'bg-blue-600 text-white border-blue-600'
+                              : 'hover:bg-gray-50'
+                          }`}
+                        >
+                          {pageNum}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  
+                  <button
+                    onClick={() => setCurrentPage(currentPage + 1)}
+                    disabled={currentPage === totalPages}
+                    className="flex items-center px-3 py-2 text-sm border rounded-md disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+                  >
+                    Next
+                    <ChevronRight className="h-4 w-4 ml-1" />
+                  </button>
+                </div>
+              </div>
+            )}
+          </>
         )}
       </div>
     </Layout>

@@ -33,7 +33,13 @@ const userSchema = new mongoose.Schema({
   },
   department: {
     type: String,
-    default: 'General'
+    default: function() {
+      return this.role === 'Admin' ? 'Administration' : 'General';
+    }
+  },
+  isEmailVerified: {
+    type: Boolean,
+    default: false
   }
 }, {
   timestamps: true

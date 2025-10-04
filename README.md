@@ -1,8 +1,8 @@
-# ExpenseFlow - Sophisticated Expense Management System
+# ExpenseFlow - AI-Powered Expense Management System
 
 ## Project Overview
 
-ExpenseFlow is a highly flexible and automated expense management web application designed to eliminate the inefficiencies of manual processes. The application's core strength lies in its powerful, configurable approval workflow engine that streamlines expense submission, review, and approval processes.
+ExpenseFlow is a sophisticated, AI-powered expense management web application designed to eliminate manual processes and fraud. Built with modern technologies and featuring advanced fraud detection, predictive analytics, and smart automation, it transforms how organizations handle expense management.
 
 ## Tech Stack
 
@@ -100,29 +100,37 @@ Create a `.env` file in the `backend` directory:
 
 ```env
 NODE_ENV=development
-PORT=5000
+PORT=5001
 MONGO_URI=mongodb://localhost:27017/expenseflow
 JWT_SECRET=your_super_secret_jwt_key_here_make_it_long_and_random
-CURRENCY_CONVERTER_API_KEY=your_exchangerate_api_key_here
 UPLOAD_PATH=uploads/receipts
 FRONTEND_URL=http://localhost:3000
+
+# Email Configuration (Gmail SMTP)
+EMAIL_HOST=smtp.gmail.com
+EMAIL_PORT=587
+EMAIL_USER=your_gmail_email@gmail.com
+EMAIL_PASS=your_gmail_app_password
 ```
 
 #### Frontend Environment (.env.local)
 Create a `.env.local` file in the `frontend` directory:
 
 ```env
-NEXT_PUBLIC_API_URL=http://localhost:5000/api
+NEXT_PUBLIC_API_URL=http://localhost:5001/api
 ```
 
 ### Environment Variables Explained
 
 - **MONGO_URI**: MongoDB connection string (local or Atlas)
 - **JWT_SECRET**: Secret key for JWT token signing (use a strong, random string)
-- **CURRENCY_CONVERTER_API_KEY**: API key from exchangerate-api.com (optional for development)
-- **PORT**: Backend server port (default: 5000)
+- **PORT**: Backend server port (default: 5001)
 - **FRONTEND_URL**: Frontend URL for CORS configuration
 - **UPLOAD_PATH**: Directory for storing uploaded receipt images
+- **EMAIL_HOST**: SMTP server host (Gmail: smtp.gmail.com)
+- **EMAIL_PORT**: SMTP server port (Gmail: 587)
+- **EMAIL_USER**: Your Gmail email address
+- **EMAIL_PASS**: Gmail app password (not regular password)
 
 ### Running the Application
 
@@ -132,8 +140,17 @@ NEXT_PUBLIC_API_URL=http://localhost:5000/api
 npm run dev
 
 # Or run individually
-npm run dev:backend  # Starts backend on http://localhost:5000
+npm run dev:backend  # Starts backend on http://localhost:5001
 npm run dev:frontend # Starts frontend on http://localhost:3000
+```
+
+#### Seeding Data
+```bash
+# Seed users with departments and managers
+cd backend && node scripts/seedUsers.js
+
+# Seed sample expenses
+cd backend && node scripts/seedExpenses.js
 ```
 
 #### Production Mode
@@ -148,6 +165,20 @@ cd backend && npm start
 cd frontend && npm start
 ```
 
+## External APIs Used
+
+### REST Countries API
+- **URL**: `https://restcountries.com/v3.1/all?fields=name,currencies`
+- **Purpose**: Fetch country names and their currencies with symbols
+- **Usage**: Used during registration to get currency based on selected country
+- **No API Key Required**
+
+### ExchangeRate API
+- **URL**: `https://api.exchangerate-api.com/v4/latest/{BASE-CURRENCY}`
+- **Purpose**: Real-time currency conversion rates
+- **Usage**: Convert expense amounts to company's default currency
+- **No API Key Required** (free tier)
+
 ## API Documentation
 
 ### Authentication Endpoints
@@ -156,6 +187,9 @@ cd frontend && npm start
 | POST | `/api/auth/register` | Create first Admin and Company | Public |
 | POST | `/api/auth/login` | Log in a user and return JWT | Public |
 | POST | `/api/auth/logout` | Log out current user | Public |
+| POST | `/api/auth/send-otp` | Send OTP for email verification | Public |
+| POST | `/api/auth/verify-otp` | Verify OTP code | Public |
+| POST | `/api/auth/reset-password` | Reset password with OTP | Public |
 
 ### User Management Endpoints
 | Method | Endpoint | Description | Protected By |
@@ -173,6 +207,7 @@ cd frontend && npm start
 | GET | `/api/expenses/pending-approval` | Get expenses awaiting approval | Auth |
 | PUT | `/api/expenses/:id/status` | Approve or reject expense | Auth |
 | GET | `/api/expenses/company-expenses` | Get all approved company expenses | Auth |
+| GET | `/api/expenses/team-expenses` | Get team member expenses (Manager/Admin) | Auth |
 
 ### Analytics Endpoints
 | Method | Endpoint | Description | Protected By |
@@ -226,20 +261,24 @@ frontend/
 ### Admin
 - Create and manage users (Employees and Managers)
 - Create and configure approval workflows
-- View all company expenses
+- View all company expenses and team expenses
+- Bulk approve all pending expenses
+- Department: Administration
 - Full system access
 
 ### Manager
 - Approve or reject expenses from direct reports
-- View pending approvals
+- View pending approvals and team expenses (department-wise)
 - Submit own expenses
 - Manage team members (if configured)
+- View department analytics
 
 ### Employee
-- Submit expense claims
+- Submit expense claims with GPS location tagging
 - Upload receipt images for OCR processing
 - View own expense history
 - Track approval status
+- View department and manager information
 
 ## Workflow Configuration
 
@@ -319,6 +358,39 @@ frontend/
 - Backup uploaded receipt images
 - Version control for configuration changes
 
+## New Features Added
+
+### Email Verification System
+- **OTP-based verification** for signup and password reset
+- **Gmail SMTP integration** with nodemailer
+- **Secure email templates** for professional communication
+- **Rate limiting** and attempt tracking for security
+
+### Department Management
+- **8 departments**: Finance, HR, IT, Marketing, Sales, Operations, Legal, R&D
+- **54+ seeded users** across all departments with realistic Indian names
+- **Department-based filtering** in team expenses and user management
+- **Manager hierarchy** with department-wise reporting
+
+### Team Expenses Management
+- **Role-based access**: Managers see department expenses, Admins see all
+- **Employee summary cards** with expense statistics
+- **Advanced filtering** by department, employee, and search terms
+- **Real-time stats** updating based on filters
+
+### Enhanced User Experience
+- **Employee dashboard** shows department and manager information
+- **GPS location tagging** for travel expenses
+- **Company currency consistency** using REST Countries API
+- **Bulk approval** functionality for admins
+- **Professional landing page** with feature showcase
+
+### Currency System
+- **Dynamic currency symbols** from REST Countries API
+- **Real-time conversion** using ExchangeRate API
+- **Company default currency** display throughout application
+- **Multi-currency support** with automatic conversion
+
 ## 📊 Key Metrics & Benefits
 
 ### **Fraud Prevention**
@@ -350,10 +422,39 @@ ExpenseFlow represents the next generation of expense management with:
 - **Enterprise Ready**: Advanced features for compliance, security, and business intelligence
 - **User-Centric Design**: Intuitive interface with smart automation
 
+## Default Credentials
+
+After seeding, you can use these credentials:
+
+### Admin User
+- **Email**: Create during registration
+- **Department**: Administration
+- **Access**: Full system access
+
+### Manager Credentials (IT Department)
+- **Email**: suresh.krishnan@company.com
+- **Password**: password123
+- **Role**: Manager
+- **Department**: IT
+
+### Employee Credentials (IT Department)
+- **Email**: rahul.verma@company.com
+- **Password**: password123
+- **Role**: Employee
+- **Department**: IT
+- **Manager**: Suresh Krishnan
+
+## Port Configuration
+- **Backend**: http://localhost:5001
+- **Frontend**: http://localhost:3000
+- **Database**: MongoDB on default port 27017
+
 ## License
 
 This project is proprietary software. All rights reserved.
 
 ---
+
+**Powered by Infinite Loopers**
 
 For technical support or questions, please contact the development team.
