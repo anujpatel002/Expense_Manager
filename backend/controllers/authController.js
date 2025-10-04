@@ -185,11 +185,10 @@ const sendOTP = async (req, res, next) => {
     });
 
     // Send OTP email
-    try {
-      await sendOTPEmail(email, otp, type);
-    } catch (emailError) {
-      console.error('Email sending failed:', emailError);
-      // Still log OTP for development
+    await sendOTPEmail(email, otp, type);
+    
+    // Log OTP for development
+    if (process.env.NODE_ENV === 'development') {
       console.log(`OTP for ${email} (${type}): ${otp}`);
     }
     
