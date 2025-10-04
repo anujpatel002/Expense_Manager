@@ -281,20 +281,6 @@ const getPendingApprovals = async (req, res, next) => {
         const currentStep = expense.workflow.steps[expense.currentApproverIndex];
         return currentStep && currentStep.approver.toString() === req.user._id.toString();
       });
-      
-      // Add approval context for admin
-      pendingExpenses = pendingExpenses.map(expense => {
-        const approvalContext = {
-          ...expense.toObject(),
-          approvalContext: {
-            previousApprovals: expense.approvalHistory.filter(h => h.status === 'Approved'),
-            currentStep: expense.currentApproverIndex + 1,
-            totalSteps: expense.workflow.steps.length,
-            approvedByManager: expense.approvalHistory.some(h => h.status === 'Approved')
-          }
-        };
-        return approvalContext;
-      });
     } else if (req.user.role === 'Manager') {
       // Manager sees expenses from their direct reports (step 1)
       const directReports = await User.find({ manager: req.user._id }).distinct('_id');
